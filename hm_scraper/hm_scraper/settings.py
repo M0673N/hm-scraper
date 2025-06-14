@@ -94,6 +94,7 @@ AUTOTHROTTLE_ENABLED = True
 # Set settings whose default value is deprecated to a future-proof value
 FEED_EXPORT_ENCODING = "utf-8"
 
+# Playwright settings
 DOWNLOAD_HANDLERS = {
     "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
     "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
@@ -102,5 +103,6 @@ DOWNLOAD_HANDLERS = {
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 
 PLAYWRIGHT_LAUNCH_OPTIONS = {
+    # JS and CSS refused to load in headless mode
     "headless": False,
 }

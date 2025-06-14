@@ -1,5 +1,7 @@
 import scrapy
 import json
+import re
+from scrapy import Selector
 from scrapy_playwright.page import PageMethod
 
 class HMProductSpider(scrapy.Spider):
@@ -17,16 +19,24 @@ class HMProductSpider(scrapy.Spider):
         for url in self.start_urls:
             yield scrapy.Request(
                 url,
-                meta={"playwright": True},
-                headers={
-                    'Accept-Language': 'bg-BG,bg;q=0.9,en-US;q=0.8,en;q=0.7',
-                    'Referer': 'https://www2.hm.com/bg_bg/index.html',
-                    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36',
+                meta={"playwright": True, 
+                    "playwright_include_page": True,
+                    "playwright_page_methods": [
+                    PageMethod("wait_for_load_state", "networkidle"),
+                ],},
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                "Chrome/115.0.0.0 Safari/537.36",
+                    "Accept-Language": "bg-BG,bg;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+                    "Referer": "https://www2.hm.com/bg_bg/index.html",
+                    "Connection": "keep-alive",
                 }
             )
 
 
-    def parse(self, response):
+    async def parse(self, response):
         # Extract JSON data embedded in the __NEXT_DATA__ script tag
         script = response.xpath("//script[@id='__NEXT_DATA__']/text()").get()
         if not script:
@@ -34,10 +44,6 @@ class HMProductSpider(scrapy.Spider):
             return
 
         data = json.loads(script)
-
-        # Dump the data into a file to explore the structure
-        # with open("data_dump.txt", "w", encoding="utf-8") as f:
-        #     json.dump(data, f, ensure_ascii=False, indent=4)
 
         # Navigate JSON to product details
         product_data = data.get('props', {}).get('pageProps', {}).get('productPageProps', {}).get('aemData', {}).get('productArticleDetails', {})
@@ -75,15 +81,25 @@ class HMProductSpider(scrapy.Spider):
 
 
         # Reviews info
-        # TODO
+        page = response.meta["playwright_page"]
+        await page.click("#__next > main > div.rOGz > div > div > div:nth-child(2) > div > div > div.f27895 > section > div.ff18ac.ab7eab > div > a:nth-child(2)")
+        await page.wait_for_selector('button.abb0ad.dfc6c7.a61a60.ed39fb', timeout=5000)
+        content = await page.content()
+        new_selector = Selector(text=content)
+        count_el = new_selector.css('button.abb0ad.dfc6c7.a61a60.ed39fb').get()
+        match = re.search(r'\[(\d+)\]', count_el)
+        count = int(match.group(1))
+
+        score_text = new_selector.css('button.d1a171.f14b25 > div > span.ed5fe2.ca866b::text').get()
+        reviews_score = float(score_text.strip())
 
         yield {
             "name": product_name,
             "price": price,
             "color": default_color,
             "availableColors": available_colors,
-            # "reviews_count": count,
-            # "reviews_score": reviews_score,
+            "reviews_count": count,
+            "reviews_score": reviews_score,
         }
 
 # scrapy crawl hm_product

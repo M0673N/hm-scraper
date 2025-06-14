@@ -10,9 +10,8 @@ class HMProductSpider(scrapy.Spider):
     start_urls = ["https://www2.hm.com/bg_bg/productpage.1274171085.html"]
 
     custom_settings = {
-        'FEED_FORMAT': 'json',
+        'FEED_FORMAT': 'jsonlines',
         'FEED_URI': 'product_data.json',
-        # 'LOG_LEVEL': 'INFO',
     }
 
     def start_requests(self):
@@ -60,15 +59,14 @@ class HMProductSpider(scrapy.Spider):
 
         # Build a list of available color names from each variation
         available_colors = []
+        selected_variant = None
+        default_color = response.css('#__next > main > div.rOGz > div > div > div:nth-child(2) > div > div > div.f27895 > section > p::text').get()
         for variant in variations.values():
             color_name = variant.get("name", "")
-            if color_name and color_name not in available_colors:
+            if color_name == default_color:
+                selected_variant = variant
+            if color_name not in available_colors:
                 available_colors.append(color_name)
-
-        # Select the first variation as the default selected variant
-        first_variant_key = list(variations.keys())[0]
-        selected_variant = variations[first_variant_key]
-        default_color = selected_variant.get("name", "")
 
         # For price, use the "redPriceValue" (e.g., sale price) if available, otherwise "whitePriceValue"
         red_price_val = selected_variant.get("redPriceValue", "").strip()

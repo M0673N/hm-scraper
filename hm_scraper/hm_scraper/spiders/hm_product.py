@@ -58,7 +58,11 @@ class HMProductSpider(scrapy.Spider):
             self.logger.error("Could not find __NEXT_DATA__ script tag")
             return
 
-        data = json.loads(script)
+        try:
+            data = json.loads(script)
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSON decoding error: {e}")
+            return
 
         # Navigate through nested JSON keys to reach product details
         product_data = data.get('props', {}).get('pageProps', {}).get('productPageProps', {}).get('aemData', {}).get('productArticleDetails', {})
@@ -66,11 +70,10 @@ class HMProductSpider(scrapy.Spider):
             self.logger.error("Product data not found in JSON")
             return
         
-        # Extract product name
-        product_name = product_data.get("productName", "")
+        # Extract product name and variations
+        product_name = product_data.get("productName", "").strip()
+        variations = product_data.get("variations", {})
 
-        # Extract product variations (e.g., colors)
-        variations = product_data.get('variations', {})
         if not variations:
             self.logger.error("No variations found")
             return
@@ -78,20 +81,21 @@ class HMProductSpider(scrapy.Spider):
         # Initialize list for available color names
         available_colors = []
 
-        # Extract default color
-        default_color = response.css(
-            '#__next > main > div.rOGz > div > div > div:nth-child(2) > div > div > div.f27895 > section > p::text'
-        ).get()
+        # Get the default color shown on the page and normalize it
+        default_color = response.css('#__next > main > div.rOGz > div > div > div:nth-child(2) > div > div > div.f27895 > section > p::text').get()
+        if default_color:
+            default_color = default_color.strip()
 
-        selected_variant = None  # Will hold the variant matching the default color
-
-        # Iterate over variations to collect all color names and find the selected variant
+        # Initialize available colors and find the matching variant, using case-insensitive comparison
+        available_colors = []
+        selected_variant = None
         for variant in variations.values():
-            color_name = variant.get("name", "")
-            if color_name == default_color:
-                selected_variant = variant  # Found the variant matching the default color
-            if color_name not in available_colors:
-                available_colors.append(color_name)
+            color_name = variant.get("name", "").strip()
+            if color_name:
+                if color_name not in available_colors:
+                    available_colors.append(color_name)
+                if default_color and color_name.lower() == default_color.lower():
+                    selected_variant = variant
 
         # Safeguard: if no matching variant found, pick the first one as fallback
         if not selected_variant:
@@ -106,32 +110,47 @@ class HMProductSpider(scrapy.Spider):
         except Exception:
             price = 0.0  # Default price if parsing fails
 
-        # Use Playwright page object to interact with the page for reviews info
-        page = response.meta["playwright_page"]
+        # Use Playwright page object to reveal reviews info
+        page = response.meta.get("playwright_page")
+        if not page:
+            self.logger.error("Playwright page object missing")
+            return
 
-        # Click on the element to reveal reviews count and score
-        await page.click(
-            "#__next > main > div.rOGz > div > div > div:nth-child(2) > div > div > div.f27895 > section > div.ff18ac.ab7eab > div > a:nth-child(2)"
-        )
-
-        # Wait explicitly for the reviews count button to appear after click
-        await page.wait_for_selector('button.abb0ad.dfc6c7.a61a60.ed39fb', timeout=5000)
+        try:
+            # Click element to open reviews details
+            await page.click(
+                "#__next > main > div.rOGz > div > div > div:nth-child(2) > div > div > div.f27895 > section > div.ff18ac.ab7eab > div > a:nth-child(2)",
+                timeout=5000,
+            )
+            await page.wait_for_selector("button.abb0ad.dfc6c7.a61a60.ed39fb", timeout=5000)
+            content = await page.content()
+        except Exception as e:
+            self.logger.error(f"Error during Playwright interaction: {e}")
+            # as a fallback, try to get the current content anyway
+            content = await page.content()
+        finally:
+            # Always close the Playwright page to free resources
+            await page.close()
 
         # Get updated HTML content after interaction
-        content = await page.content()
         new_selector = Selector(text=content)
 
-        # Extract reviews count element HTML
-        count_el = new_selector.css('button.abb0ad.dfc6c7.a61a60.ed39fb').get()
-        # Use regex to find number inside square brackets, e.g., "[60]"
-        match = re.search(r'\[(\d+)\]', count_el)
-        count = int(match.group(1)) if match else 0
+        # Extract reviews count using regex on text within the button
+        reviews_count = 0
+        count_text = new_selector.css("button.abb0ad.dfc6c7.a61a60.ed39fb::text").get()
+        if count_text:
+            match = re.search(r"\[(\d+)\]", count_text)
+            if match:
+                reviews_count = int(match.group(1))
 
-        # Extract reviews score text and convert to float
-        score_text = new_selector.css(
-            'button.d1a171.f14b25 > div > span.ed5fe2.ca866b::text'
-        ).get()
-        reviews_score = float(score_text.strip()) if score_text else 0.0
+        # Extract reviews score and safely convert it to a float
+        reviews_score = 0.0
+        score_text = new_selector.css("button.d1a171.f14b25 > div > span.ed5fe2.ca866b::text").get()
+        if score_text:
+            try:
+                reviews_score = float(score_text.strip())
+            except ValueError:
+                self.logger.error("Unable to parse reviews score")
 
         # Yield the scraped product data as a dictionary
         yield {
@@ -139,9 +158,6 @@ class HMProductSpider(scrapy.Spider):
             "price": price,
             "color": default_color,
             "availableColors": available_colors,
-            "reviews_count": count,
+            "reviews_count": reviews_count,
             "reviews_score": reviews_score,
         }
-
-# To run this spider, use:
-# scrapy crawl hm_product

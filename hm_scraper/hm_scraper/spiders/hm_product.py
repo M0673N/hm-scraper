@@ -82,7 +82,7 @@ class HMProductSpider(scrapy.Spider):
         available_colors = []
 
         # Get the default color shown on the page and normalize it
-        default_color = response.css('#__next > main > div.rOGz > div > div > div:nth-child(2) > div > div > div.f27895 > section > p::text').get()
+        default_color = response.xpath('string(//h2[contains(normalize-space(.),"Цвят")]/following-sibling::p[1])').get()
         if default_color:
             default_color = default_color.strip()
 
@@ -119,10 +119,10 @@ class HMProductSpider(scrapy.Spider):
         try:
             # Click element to open reviews details
             await page.click(
-                "#__next > main > div.rOGz > div > div > div:nth-child(2) > div > div > div.f27895 > section > div.ff18ac.ab7eab > div > a:nth-child(2)",
+                "//main//section//a[2]/div[1]/text()",
                 timeout=5000,
             )
-            await page.wait_for_selector("button.abb0ad.dfc6c7.a61a60.ed39fb", timeout=5000)
+            await page.wait_for_selector("//button[contains(normalize-space(.), 'Коментари')]/text()", timeout=5000)
             content = await page.content()
         except Exception as e:
             self.logger.error(f"Error during Playwright interaction: {e}")
@@ -137,7 +137,7 @@ class HMProductSpider(scrapy.Spider):
 
         # Extract reviews count using regex on text within the button
         reviews_count = 0
-        count_text = new_selector.css("button.abb0ad.dfc6c7.a61a60.ed39fb::text").get()
+        count_text = new_selector.xpath("//button[contains(normalize-space(.), 'Коментари')]/text()").get()
         if count_text:
             match = re.search(r"\[(\d+)\]", count_text)
             if match:
@@ -145,7 +145,9 @@ class HMProductSpider(scrapy.Spider):
 
         # Extract reviews score and safely convert it to a float
         reviews_score = 0.0
-        score_text = new_selector.css("button.d1a171.f14b25 > div > span.ed5fe2.ca866b::text").get()
+        score_text = new_selector.xpath(
+            '//button[contains(normalize-space(.),"Коментари")]/following-sibling::button//span[2]/text()'
+            ).get()
         if score_text:
             try:
                 reviews_score = float(score_text.strip())

@@ -82,7 +82,7 @@ class HMProductSpider(scrapy.Spider):
         available_colors = []
 
         # Get the default color shown on the page and normalize it
-        default_color = response.xpath('string(//h2[contains(normalize-space(.),"Цвят")]/following-sibling::p[1])').get()
+        default_color = response.xpath("string(//section[@data-testid='color-selector']//h2[contains(normalize-space(.),'Цвят')]/following-sibling::p[1])").get()
         if default_color:
             default_color = default_color.strip()
 
@@ -119,10 +119,10 @@ class HMProductSpider(scrapy.Spider):
         try:
             # Click element to open reviews details
             await page.click(
-                "//main//section//a[2]/div[1]/text()",
+                "//section[@data-testid='color-selector']//a[2]",
                 timeout=5000,
             )
-            await page.wait_for_selector("//button[contains(normalize-space(.), 'Коментари')]/text()", timeout=5000)
+            await page.wait_for_selector("//button[contains(normalize-space(.), 'Коментари')]", timeout=5000)
             content = await page.content()
         except Exception as e:
             self.logger.error(f"Error during Playwright interaction: {e}")
@@ -146,7 +146,7 @@ class HMProductSpider(scrapy.Spider):
         # Extract reviews score and safely convert it to a float
         reviews_score = 0.0
         score_text = new_selector.xpath(
-            '//button[contains(normalize-space(.),"Коментари")]/following-sibling::button//span[2]/text()'
+            "//button[.//span[@data-testid='stars']]/@aria-label"
             ).get()
         if score_text:
             try:

@@ -1,0 +1,49 @@
+# Ignore Python cache files
+__pycache__
+*.pyc
+*.pyo
+
+# Ignore virtual environment directories
+venv/
+env/
+.venv
+
+# Ignore distribution and build directories
+build/
+dist/
+*.egg-info/
+
+# Ignore configuration files
+*.env
+*.ini
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+
+# Ignore version control directories
+.git/
+.gitignore
+
+# Ignore IDE/editor files
+.vscode/
+.idea/
+*.swp
+
+# Additional files
+Jenkinsfile
+nginx.conf
+docker-compose.yml
+.github
+Dockerfile
+
+# Terraform stuff
+terraform
+terraform.tfvars
+.terraform
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup

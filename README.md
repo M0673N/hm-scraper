@@ -35,6 +35,13 @@ The scraped data is saved as JSON objects with the following structure:
 1. Install required dependencies, including Scrapy and Scrapy-Playwright.
 2. Run the spider using:
 ```
-scrapy crawl hm_product
+python3 main.py
 ```
 3. The output JSON file (`product_data.json`) will contain the scraped product information.
+
+
+### Note:
+There are compatibility and performance issues on Windows 11 so if you have docker installed you can use this:
+```
+docker run m0673n/hm_scraper
+```
